@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binance Takers Buy/Sell Volume</title>
+    <!-- Include Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Include Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4"></script>
+    <!-- Include Chart.js annotation plugin -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/1.0.2/chartjs-plugin-annotation.min.js"></script>
+    <style>
+        body {
+            background-color: #1a202c;
+            color: #cbd5e0;
+        }
+
+        .chart-container {
+            background-color: #2d3748;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .btn {
+            background-color: #4a5568;
+            color: #cbd5e0;
+        }
+
+        .btn:hover {
+            background-color: #2d3748;
+        }
+
+        .active {
+            background-color: #4299e1;
+            color: #ffffff;
+        }
+
+        .disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        h3 {
+            color: #cbd5e0;
+        }
+
+        /* Custom style for input box */
+        .input-dark {
+            background-color: #4a5568;
+            color: #cbd5e0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app" class="container mx-auto mt-8">
+        <h1 class="text-2xl mb-4">Binance Takers Buy/Sell Volume</h1>
+        <div class="chart-container">
+            <canvas id="myChart" width="400" height="200"></canvas>
+        </div>
+        <div class="flex justify-center space-x-4 mb-4">
+            <button @click="selectTimeframe('5m')" :class="{ 'btn': true, 'disabled': disableButtons }" class="px-4 py-2 rounded-lg">5m</button>
+            <button @click="selectTimeframe('15m')" :class="{ 'btn': true, 'disabled': disableButtons }" class="px-4 py-2 rounded-lg">15m</button>
+            <button @click="selectTimeframe('30m')" :class="{ 'btn': true, 'disabled': disableButtons }" class="px-4 py-2 rounded-lg">30m</button>
+            <button @click="selectTimeframe('1h')" :class="{ 'btn': true, 'disabled': disableButtons }" class="px-4 py-2 rounded-lg">1h</button>
+            <button @click="selectTimeframe('4h')" :class="{ 'btn': true, 'disabled': disableButtons }" class="px-4 py-2 rounded-lg">4h</button>
+            <button @click="selectTimeframe('1d')" :class="{ 'btn': true, 'disabled': disableButtons }" class="px-4 py-2 rounded-lg">1D</button>
+        </div>
+        <h3 class="text-lg text-center mb-2">Current Timeframe: {{ timeframe }}</h3>
+        <div class="flex items-center justify-center space-x-4 mb-4">
+            <div>
+                <label for="symbolInput" class="block mb-2">Symbol:</label>
+                <input id="symbolInput" v-model="symbol" type="text" placeholder="Enter symbol (e.g., BTCUSDC)" class="w-32 px-4 py-2 rounded-lg text-center input-dark">
+            </div>
+            <div>
+                <label for="limitInput" class="block mb-2">Limit:</label>
+                <input id="limitInput" v-model.number="limit" type="number" placeholder="Enter limit (default: 8)" class="w-32 px-4 py-2 rounded-lg text-center input-dark">
+            </div>
+            <button @click="changeSymbol" :class="{ 'btn': true, 'disabled': disableButtons }" class="px-4 py-2 rounded-lg mt-8">Change</button>
+        </div>
+        
+    </div>
+
+    <!-- Include Vue.js -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <!-- Include Axios -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <script>
+        new Vue({
+            el: '#app',
+            data: {
+                data: [],
+                data_vol: [],
+                timeframe: '5m',
+                disableButtons: false, // New property to track button disable state
+                symbol: 'BTCUSDC', // New property for symbol input
+                limit: 30, // New property for limit input, default: 30
+                horizontalLineVolumes: { // New property for the volume values of horizontal lines
+                    '5m': 30,
+                    '15m': 120,
+                    '30m': 240,
+                    '1h': 400,
+                    '4h': 1600,
+                    '1d': 8000
+                }
+            },
+            mounted() {
+                this.fetchData(this.timeframe);
+                setInterval(() => this.fetchData(this.timeframe), 60000); // Refresh every 1 minute
+            },
+            methods: {
+                fetchData(timeframe) {
+                    // Disable buttons for 5 seconds
+                    this.disableButtons = true;
+                    setTimeout(() => {
+                        this.disableButtons = false;
+                    }, 5000);
+
+                    // Clear existing chart
+                    if (this.myChart) {
+                        this.myChart.destroy();
+                    }
+
+
+
+                    axios.get(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${this.symbol}&limit=${this.limit}&period=${timeframe}`)
+                        .then(response => {
+                            this.data = response.data;
+                            // console.log(response.data)
+                            this.updateChart();
+                        })
+                        .catch(error => {
+                            console.error('Error fetching data:', error);
+                        });
+                },
+                updateChart() {
+    const timestamps = this.data.map(item => {
+        const date = new Date(item.timestamp);
+        return `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+    });
+    const buyVolumes = this.data.map(item => parseFloat(item.buyVol));
+    const sellVolumes = this.data.map(item => parseFloat(item.sellVol));
+
+    const ctx = document.getElementById('myChart').getContext('2d');
+    const myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: timestamps,
+            datasets: [{
+                    label: 'Buy Volume',
+                    data: buyVolumes,
+                    backgroundColor: 'rgba(0, 230, 0, 0.8)',
+                    borderColor: 'rgba(86, 156, 214, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Sell Volume',
+                    data: sellVolumes,
+                    backgroundColor: 'rgba(240, 0, 1, 0.8)',
+                    borderColor: 'rgba(255, 107, 107, 1)',
+                    borderWidth: 1
+                },
+                // Horizontal line dataset
+                {
+                    type: 'line',
+                    label: 'Horizontal Line',
+                    data: Array(timestamps.length).fill(this.horizontalLineVolumes[this.timeframe]), // Dynamically set based on timeframe
+                    borderColor: 'rgba(255, 255, 1, 0.8)', // Yellow color
+                    borderWidth: 1,
+                    fill: false,
+                    borderDash: [5, 5],
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true,
+                        fontColor: '#cbd5e0'
+                    },
+                    gridLines: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                }],
+                xAxes: [{
+                    ticks: {
+                        fontColor: '#cbd5e0'
+                    },
+                    gridLines: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                }]
+            }
+        }
+    });
+    // Save chart instance to access it later
+    this.myChart = myChart;
+                },
+                selectTimeframe(timeframe) {
+                    if (!this.disableButtons) {
+                        this.timeframe = timeframe;
+                        this.fetchData(timeframe);
+                    }
+                },
+                changeSymbol() {
+                    if (!this.disableButtons) {
+                        this.fetchData(this.timeframe);
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
+
