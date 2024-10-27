@@ -28,7 +28,7 @@ Features
 
 Clone the repository:
   
-  git clone https://github.com/your-username/binance-takers-volume-dashboard.git
+  git clone https://github.com/mauricechesteraguda/binance-takers-volume-dashboard.git
 
 Navigate to the project directory:
 
